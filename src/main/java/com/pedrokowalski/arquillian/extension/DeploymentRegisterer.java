@@ -2,8 +2,11 @@ package com.pedrokowalski.arquillian.extension;
 
 import java.lang.reflect.Method;
 import java.text.MessageFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Logger;
 
 import org.jboss.arquillian.container.spi.ContainerRegistry;
@@ -18,9 +21,8 @@ import org.jboss.arquillian.test.spi.TestClass;
 import org.jboss.shrinkwrap.api.spec.WebArchive;
 
 /**
- * Registers the {@link FlexibleRegisterDeployment} which allows to choose the
- * {@link Deployment} annotated method from the test class which will be used
- * for particular target container.
+ * Registers the {@link FlexibleRegisterDeployment} which allows to choose the {@link Deployment}
+ * annotated method from the test class which will be used for particular target container.
  * 
  * @author PedroKowalski
  * 
@@ -33,14 +35,16 @@ public class DeploymentRegisterer implements LoadableExtension {
 	}
 
 	/**
-	 * Chooses the appropriate {@link Deployment} annotated method basing on the
-	 * chosen target container. The target container is defined using
-	 * {@link UseInContainer} annotation.
+	 * <p>
+	 * Chooses the appropriate {@link Deployment} annotated method basing on the chosen target
+	 * container. The target container is defined using {@link UseInContainer} annotation.
+	 * </p>
 	 * 
-	 * If there is only one {@link Deployment} annotated method, it will be
-	 * chosen by default. It's assumed that no container-specific deployment
-	 * means that no special steps are need to be taken for different
-	 * containers.
+	 * <p>
+	 * If there is only one {@link Deployment} annotated method, it will be chosen by default. It's
+	 * assumed that no container-specific deployment means that no special steps are need to be
+	 * taken for different containers.
+	 * </p>
 	 * 
 	 * @see DeploymentRegisterer
 	 * @see TargetContainerName
@@ -57,71 +61,158 @@ public class DeploymentRegisterer implements LoadableExtension {
 		@Inject
 		Instance<ContainerRegistry> container;
 
+		/**
+		 * Deployment annotated method chosen for the deployment.
+		 */
+		Method deployment;
+
 		private static final Logger log = Logger.getLogger(FlexibleRegisterDeployment.class
 				.getName());
 
 		@Override
 		public List<DeploymentDescription> generate(TestClass testClass) {
-			Method m = getMethodForDeployment(testClass, getTargetContainer());
-
-			WebArchive deployment;
+			deployment = getMethodForDeployment(testClass, getTargetContainer());
 
 			try {
-				deployment = (WebArchive) m.invoke(testClass);
+				WebArchive result = (WebArchive) deployment.invoke(testClass);
+
+				return Arrays.asList(new DeploymentDescription("On-the-fly deployment", result));
 			} catch (Exception e) {
 				throw new IllegalStateException(e);
 			}
-
-			return Arrays.asList(new DeploymentDescription("On-the-fly deployment", deployment));
 		}
 
 		/**
-		 * Gets the deployment method for particular target container.
+		 * <p>
+		 * Gets the deployment method for target container.
+		 * </p>
+		 * <p>
+		 * If the target container specific deployment is not available, the default one (if
+		 * possible to determine) will be chosen.
+		 * </p>
 		 * 
 		 * @param clazz
-		 *            test class which contains {@link Deployment} annotated
-		 *            method(s).
+		 *            test class which contains {@link Deployment} annotated method(s).
 		 * @param targetContainer
-		 *            target container adapter which is active in classpath.
-		 * @return deployment method to be invoked for specified target
-		 *         container.
+		 *            target container adapter which is active in the classpath.
+		 * 
+		 * @return deployment method to be invoked.
 		 */
-		private Method getMethodForDeployment(TestClass clazz, TargetContainerName targetContainer) {
-			Method[] methods = clazz.getMethods(Deployment.class);
+		Method getMethodForDeployment(TestClass clazz, TargetContainerName targetContainer) {
+			Map<TargetContainerName, List<Method>> deploymentMethods = getAllDeploymentMethods(clazz);
 
-			if (methods.length == 0) {
-				throw new IllegalStateException("At least one @Deployment method is required");
-			} else {
-				for (Method method : methods) {
-					if (method.getAnnotation(UseInContainer.class).value().equals(targetContainer)) {
-						return method;
-					}
-				}
-
+			if (deploymentMethods.size() == 0) {
 				MessageFormat msg = new MessageFormat(
-						"Deployment method cannot be found. Are you sure you have an appropriate @UseInContainer annotation on one of your @Deployment methods in {1}?");
+						"No deployment method can be found. Are you sure you have a @Deployment annotated method in {0}?");
 
-				throw new IllegalStateException(msg.format(new Object[] { targetContainer,
-						clazz.getName() }));
+				throw new IllegalStateException(msg.format(new Object[] { clazz.getName() }));
 			}
+
+			// We have found the requested container-specific method.
+			if (deploymentMethods.containsKey(targetContainer)) {
+				List<Method> containerDeploymentsMethods = deploymentMethods.get(targetContainer);
+
+				// We have more than one container-specific methods and we don't know what to do in
+				// such situation.
+				if (containerDeploymentsMethods.size() > 1) {
+					MessageFormat msg = new MessageFormat(
+							"More than one \"{0}\" deployment method found.");
+					throw new IllegalStateException(msg.format(new Object[] { targetContainer }));
+				} else {
+					return containerDeploymentsMethods.get(0);
+				}
+			}
+
+			// Failsafe. No container-specific method defined - try the default one.
+			if (deploymentMethods.containsKey(TargetContainerName.NONE)) {
+				List<Method> defaultDeploymentsMethods = deploymentMethods
+						.get(TargetContainerName.NONE);
+
+				// We have more than one default methods and we don't know what to do in such
+				// situation.
+				if (defaultDeploymentsMethods.size() > 1) {
+					throw new IllegalStateException(
+							"More than one default deployment method found.");
+				} else {
+					return defaultDeploymentsMethods.get(0);
+				}
+			}
+
+			// This should never occur.
+			throw new IllegalStateException("Something went totally wrong...");
 		}
 
 		/**
-		 * Gets the target container which is in user's classpath and is used in
-		 * the test run.
+		 * Returns all deployment methods and their target containers defined for the given test
+		 * class.
 		 * 
-		 * If no value is specified, the default container (
-		 * {@link TargetContainerName#GLASSFISH}) will be chosen.
+		 * @param clazz
+		 *            test class for which the deployment methods will be parsed.
 		 * 
-		 * @return name of the target container to be used.
+		 * @return all deployment methods for the <code>clazz</code>
 		 */
-		private TargetContainerName getTargetContainer() {
-			DeployableContainer<?> dc = container.get().getContainers().get(0)
-					.getDeployableContainer();
+		Map<TargetContainerName, List<Method>> getAllDeploymentMethods(TestClass clazz) {
+			Map<TargetContainerName, List<Method>> result = new HashMap<TargetContainerName, List<Method>>();
 
-			TargetContainerName result = TargetContainerName.get(dc.getClass());
+			Method[] methods = clazz.getMethods(Deployment.class);
+
+			for (Method method : methods) {
+				UseInContainer uicAnnotation = method.getAnnotation(UseInContainer.class);
+
+				TargetContainerName tcn;
+
+				if (uicAnnotation == null) {
+					// Default non-container-specific @Deployment.
+					tcn = TargetContainerName.NONE;
+				} else {
+					tcn = uicAnnotation.value();
+				}
+
+				if (!result.containsKey(tcn)) {
+					result.put(tcn, new ArrayList<Method>());
+				}
+
+				result.get(tcn).add(method);
+			}
+
+			return result;
+		}
+
+		/**
+		 * <p>
+		 * Gets the target container basing on the one available in the user's classpath.
+		 * </p>
+		 * 
+		 * <p>
+		 * If no value is specified, the default non-container-specific will be chosen.
+		 * </p>
+		 * 
+		 * @return the target container to be used.
+		 */
+		TargetContainerName getTargetContainer() {
+			DeployableContainer<?> dc = getContainerInClasspath();
+			String packageName = dc.getClass().getPackage().getName().toLowerCase();
+
+			TargetContainerName result = TargetContainerName.get(packageName);
 
 			log.info("Using '" + result + "' as a target container.");
+
+			return result;
+		}
+
+		/**
+		 * Gets the target container which is in the user's classpath and is used in the test run.
+		 * 
+		 * @return current container adapter
+		 */
+		private DeployableContainer<?> getContainerInClasspath() {
+			if (container == null || container.get().getContainers().get(0) == null) {
+				throw new IllegalStateException(
+						"Cannot find any container adapter in the classpath.");
+			}
+
+			DeployableContainer<?> result = container.get().getContainers().get(0)
+					.getDeployableContainer();
 
 			return result;
 		}

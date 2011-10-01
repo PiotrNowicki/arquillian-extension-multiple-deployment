@@ -3,8 +3,7 @@ package com.pedrokowalski.arquillian.extension;
 import java.util.logging.Logger;
 
 /**
- * Represents possible target container which deployment can be explicitly set
- * in test class.
+ * Represents possible target container which deployment can be explicitly set in test class.
  * 
  * @author PedroKowalski
  * 
@@ -19,7 +18,12 @@ public enum TargetContainerName {
 	/**
 	 * JBoss AS7 container.
 	 */
-	JBOSSAS7("org.jboss.as.arquillian.container");
+	JBOSSAS7("org.jboss.as.arquillian.container"),
+
+	/**
+	 * Failsafe; if no specific container is required.
+	 */
+	NONE("");
 
 	/**
 	 * Holds the unique part of the container adapter package name.
@@ -37,27 +41,24 @@ public enum TargetContainerName {
 	}
 
 	/**
-	 * Gets the {@link TargetContainerName} basing on the runtime deployment
-	 * class passed as an argument.
+	 * Gets the {@link TargetContainerName} basing on the runtime deployment container package name.
 	 * 
-	 * @param clazz
-	 *            deployment class for which the target container should be
+	 * @param containerPackage
+	 *            name of the container deployment package for which the target container should be
 	 *            returned
 	 * @return target container name
 	 */
-	public static TargetContainerName get(Class<?> clazz) {
+	public static TargetContainerName get(String containerPackage) {
 		for (TargetContainerName tcn : values()) {
-			String packageName = clazz.getPackage().getName().toLowerCase();
-
-			if (packageName.contains(tcn.getPackageName())) {
+			if (tcn.getPackageName().contains(containerPackage)) {
 				return tcn;
 			}
 		}
 
 		// No matches found - go with the default.
-		log.warning("No matching container for '" + clazz.getName()
+		log.warning("No matching container for '" + containerPackage
 				+ "' found. Falling back to default.");
 
-		return GLASSFISH;
+		return NONE;
 	}
 }
