@@ -1,0 +1,22 @@
+----- Arquillian extension for multiple deployments for different containers -----
+
+This extension allows to define multiple @Deployment methods for different type of containers. 
+Basing on the container adapter actually used, the appropriate @Deployment method will be chosen.
+
+It allows to prepare different fine-grained deployments i.e. for GlassFish 3.1 and JBoss AS7 directly in 
+the test case and execute the test upon them. If you use Maven profiles to choose the target container, 
+the same container-specific deployment will be used.
+
+If no @UseInContainer annotations are used, the default @Deployment will be chosen to operate on.
+
+--- Example ---
+
+@Deployment
+@UseInContainer(TargetContainerName.GLASSFISH)
+public static WebArchive createGlassFishDeployment() {}
+
+@Deployment
+@UseInContainer(TargetContainerName.JBOSSAS7)
+public static WebArchive createJBossDeployment() {}
+
+---------------------------------------------------------------------------------------------------
