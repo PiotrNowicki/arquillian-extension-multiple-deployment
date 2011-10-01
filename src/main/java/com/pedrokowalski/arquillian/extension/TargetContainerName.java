@@ -13,7 +13,7 @@ public enum TargetContainerName {
 	/**
 	 * Glassfish 3.1 container.
 	 */
-	GLASSFISH("container.glassfish"),
+	GLASSFISH("org.jboss.arquillian.container.glassfish"),
 
 	/**
 	 * JBoss AS7 container.
@@ -50,7 +50,7 @@ public enum TargetContainerName {
 	 */
 	public static TargetContainerName get(String containerPackage) {
 		for (TargetContainerName tcn : values()) {
-			if (tcn.getPackageName().contains(containerPackage)) {
+			if (containerPackage.contains(tcn.getPackageName())) {
 				return tcn;
 			}
 		}

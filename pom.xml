@@ -6,12 +6,25 @@
 	<version>0.0.1-SNAPSHOT</version>
 	<packaging>jar</packaging>
 	<name>Arquillian Multiple Containers Deployment</name>
+	<scm>
+		<connection>git://github.com/PedroKowalski/arquillian-extension-multiple-deployment.git</connection>
+	</scm>
+
+	<properties>
+		<arquillian_version>1.0.0.CR1</arquillian_version>
+		<junit_version>4.9</junit_version>
+	</properties>
 
 	<dependencies>
 		<dependency>
 			<groupId>org.jboss.arquillian.junit</groupId>
 			<artifactId>arquillian-junit-container</artifactId>
-			<version>1.0.0.CR1</version>
+			<version>${arquillian_version}</version>
+		</dependency>
+		<dependency>
+			<groupId>junit</groupId>
+			<artifactId>junit</artifactId>
+			<version>${junit_version}</version>
 		</dependency>
 	</dependencies>
 
