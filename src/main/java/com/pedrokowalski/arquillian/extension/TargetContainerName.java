@@ -21,6 +21,31 @@ public enum TargetContainerName {
 	JBOSSAS7("org.jboss.as.arquillian.container"),
 
 	/**
+	 * Open WebBeans container.
+	 */
+	OPENWEBBEANS("org.jboss.arquillian.container.openwebbeans"),
+
+	/**
+	 * Weld container.
+	 */
+	WELD("org.jboss.arquillian.container.weld.ee"),
+
+	/**
+	 * Tomcat 5.5, 6 and 7 container.
+	 */
+	TOMCAT("org.jboss.arquillian.container.tomcat"),
+
+	/**
+	 * Jetty container.
+	 */
+	JETTY("org.jboss.arquillian.container.jetty"),
+
+	/**
+	 * Openshift container.
+	 */
+	OPENSHIFT("org.jboss.arquillian.container.openshift"),
+
+	/**
 	 * Failsafe; if no specific container is required.
 	 */
 	NONE("");
